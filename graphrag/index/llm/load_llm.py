@@ -16,6 +16,10 @@ from graphrag.llm import (
     LLMCache,
     LLMLimiter,
     MockCompletionLLM,
+    ClaudeConfiguration,
+    create_claude_chat_llm,
+    create_claude_client,
+    create_claude_completion_llm,
     OpenAIConfiguration,
     create_openai_chat_llm,
     create_openai_client,
@@ -93,6 +97,45 @@ def _create_error_handler(callbacks: VerbCallbacks) -> ErrorHandlerFn:
         callbacks.error("Error Invoking LLM", error, stack, details)
 
     return on_error
+
+
+def _load_claude_completion_llm(
+    on_error: ErrorHandlerFn,
+    cache: LLMCache,
+    config: dict[str, Any],
+):
+    return _create_claude_completion_llm(
+        ClaudeConfiguration({
+            **_get_base_config(config),
+            "model": config.get("model", "claude-3-5-sonnet-20240620"),
+            "deployment_name": config.get("deployment_name"),
+            "temperature": config.get("temperature", 0.0),
+            "top_p": config.get("top_p", 1),
+            "max_tokens": config.get("max_tokens", 4000),
+        }),
+        on_error,
+        cache,
+    )
+
+
+def _load_claude_chat_llm(
+    on_error: ErrorHandlerFn,
+    cache: LLMCache,
+    config: dict[str, Any],
+):
+    return _create_claude_chat_llm(
+        ClaudeConfiguration({
+            # Set default values
+            **_get_base_config(config),
+            "model": config.get("model", "claude-3-5-sonnet-20240620"),
+            "deployment_name": config.get("deployment_name"),
+            "temperature": config.get("temperature", 0.0),
+            "top_p": config.get("top_p", 1),
+            "max_tokens": config.get("max_tokens"),
+        }),
+        on_error,
+        cache,
+    )
 
 
 def _load_openai_completion_llm(
@@ -211,6 +254,14 @@ def _load_static_response(
 
 
 loaders = {
+    LLMType.Claude: {
+        "load": _load_claude_completion_llm,
+        "chat": False,
+    },
+    LLMType.ClaudeChat: {
+        "load": _load_claude_chat_llm,
+        "chat": True,
+    },
     LLMType.OpenAI: {
         "load": _load_openai_completion_llm,
         "chat": False,
@@ -240,6 +291,35 @@ loaders = {
         "chat": False,
     },
 }
+
+
+def _create_claude_chat_llm(
+    configuration: ClaudeConfiguration,
+    on_error: ErrorHandlerFn,
+    cache: LLMCache,
+) -> CompletionLLM:
+    """Create an Claude chat llm."""
+    client = create_claude_client(configuration=configuration)
+    limiter = _create_limiter(configuration)
+    semaphore = _create_semaphore(configuration)
+    return create_claude_chat_llm(
+        client, configuration, cache, limiter, semaphore, on_error=on_error
+    )
+
+
+def _create_claude_completion_llm(
+    configuration: ClaudeConfiguration,
+    on_error: ErrorHandlerFn,
+    cache: LLMCache,
+    azure=False,
+) -> CompletionLLM:
+    """Create an Claude completion llm."""
+    client = create_claude_client(configuration=configuration)
+    limiter = _create_limiter(configuration)
+    semaphore = _create_semaphore(configuration)
+    return create_claude_completion_llm(
+        client, configuration, cache, limiter, semaphore, on_error=on_error
+    )
 
 
 def _create_openai_chat_llm(

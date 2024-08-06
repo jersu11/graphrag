@@ -1,7 +1,6 @@
-# Copyright (c) 2024 Microsoft Corporation.
 # Licensed under the MIT License
 
-"""Utility functions for the OpenAI API."""
+"""Utility functions for the Claude API."""
 
 import json
 import re
@@ -10,14 +9,14 @@ from collections.abc import Callable
 from typing import Any
 
 import tiktoken
-from openai import (
+from anthropic import (
     APIConnectionError,
     InternalServerError,
     RateLimitError,
 )
 
 from ._json import clean_up_json
-from .openai_configuration import OpenAIConfiguration
+from .claude_configuration import ClaudeConfiguration
 
 DEFAULT_ENCODING = "cl100k_base"
 
@@ -33,7 +32,7 @@ RATE_LIMIT_ERRORS: list[type[Exception]] = [RateLimitError]
 log = logging.getLogger(__name__)
 
 
-def get_token_counter(config: OpenAIConfiguration) -> Callable[[str], int]:
+def get_token_counter(config: ClaudeConfiguration) -> Callable[[str], int]:
     """Get a function that counts the number of tokens in a string."""
     model = config.encoding_model or "cl100k_base"
     enc = _encoders.get(model)
@@ -66,28 +65,27 @@ def perform_variable_replacements(
     return result
 
 
-def get_completion_cache_args(configuration: OpenAIConfiguration) -> dict:
+def get_completion_cache_args(configuration: ClaudeConfiguration) -> dict:
     """Get the cache arguments for a completion LLM."""
     return {
         "model": configuration.model,
         "temperature": configuration.temperature,
-        "frequency_penalty": configuration.frequency_penalty,
-        "presence_penalty": configuration.presence_penalty,
+        # "frequency_penalty": configuration.frequency_penalty,
+        # "presence_penalty": configuration.presence_penalty,
         "top_p": configuration.top_p,
         "max_tokens": configuration.max_tokens,
-        "n": configuration.n,
+        # "n": configuration.n,
     }
 
 
 def get_completion_llm_args(
-    parameters: dict | None, configuration: OpenAIConfiguration
+    parameters: dict | None, configuration: ClaudeConfiguration
 ) -> dict:
     """Get the arguments for a completion LLM."""
     return {
         **get_completion_cache_args(configuration),
         **(parameters or {}),
     }
-
 
 def try_parse_json_object(input: str) -> dict:
     """Generate JSON-string output using best-attempt prompting & parsing techniques."""

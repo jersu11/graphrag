@@ -1,4 +1,3 @@
-# Copyright (c) 2024 Microsoft Corporation.
 # Licensed under the MIT License
 
 """The Chat-based language model."""
@@ -17,9 +16,8 @@ from graphrag.llm.types import (
 )
 
 from ._json import clean_up_json
-from ._prompts import JSON_CHECK_PROMPT
-from .openai_configuration import OpenAIConfiguration
-from .types import OpenAIClientTypes
+from .claude_configuration import ClaudeConfiguration
+from .types import ClaudeClientTypes
 from .utils import (
     get_completion_llm_args,
     try_parse_json_object,
@@ -31,13 +29,13 @@ _MAX_GENERATION_RETRIES = 3
 FAILED_TO_CREATE_JSON_ERROR = "Failed to generate valid JSON output"
 
 
-class OpenAIChatLLM(BaseLLM[CompletionInput, CompletionOutput]):
+class ClaudeChatLLM(BaseLLM[CompletionInput, CompletionOutput]):
     """A Chat-based LLM."""
 
-    _client: OpenAIClientTypes
-    _configuration: OpenAIConfiguration
+    _client: ClaudeClientTypes
+    _configuration: ClaudeConfiguration
 
-    def __init__(self, client: OpenAIClientTypes, configuration: OpenAIConfiguration):
+    def __init__(self, client: ClaudeClientTypes, configuration: ClaudeConfiguration):
         self.client = client
         self.configuration = configuration
 
@@ -48,14 +46,30 @@ class OpenAIChatLLM(BaseLLM[CompletionInput, CompletionOutput]):
             kwargs.get("model_parameters"), self.configuration
         )
         history = kwargs.get("history") or []
+
+        # Extract system message if present
+        system_message = None
+        filtered_history = []
+        for message in history:
+            if message.get('role') == 'system':
+                system_message = message.get('content')
+            else:
+                filtered_history.append(message)
+
         messages = [
-            *history,
+            *filtered_history,
             {"role": "user", "content": input},
         ]
-        completion = await self.client.chat.completions.create(
+
+        # Add system message to args if found
+        if system_message:
+            args['system'] = system_message
+
+        response = await self.client.messages.create(
             messages=messages, **args
         )
-        return completion.choices[0].message.content
+        return response.content[0].text
+
 
     async def _invoke_json(
         self,
@@ -84,17 +98,18 @@ class OpenAIChatLLM(BaseLLM[CompletionInput, CompletionOutput]):
             modified_kwargs['name'] = call_name
 
             return (
-                await self._native_json(input, **{**kwargs, "name": call_name})
+                await self._native_json(input, **modified_kwargs)
                 if self.configuration.model_supports_json
-                else await self._manual_json(input, **{**kwargs, "name": call_name})
+                else await self._manual_json(input, **modified_kwargs)
             )
 
         def is_valid(x: dict | None) -> bool:
             return x is not None and is_response_valid(x)
 
-        result = await generate()
-        retry = 0
+        result = await generate(0)
+        retry = 1
         while not is_valid(result.json) and retry < _MAX_GENERATION_RETRIES:
+            log.info(f"_invoke_json attempt {retry} failed to produce valid JSON. Retrying...")
             result = await generate(retry)
             retry += 1
 
@@ -139,27 +154,9 @@ class OpenAIChatLLM(BaseLLM[CompletionInput, CompletionOutput]):
                 output=output, json=json_output, history=history
             )
         except (TypeError, JSONDecodeError):
-            log.warning("error parsing llm json, retrying")
-            # If cleaned up json is unparsable, use the LLM to reformat it (may throw)
-            result = await self._try_clean_json_with_llm(output, **kwargs)
-            output = clean_up_json(result.output or "")
-            json = try_parse_json_object(output)
-
+            # log.warning("error parsing llm json, retrying")
             return LLMOutput[CompletionOutput](
-                output=output,
-                json=json,
+                output="",
+                json="",
                 history=history,
             )
-
-    async def _try_clean_json_with_llm(
-        self, output: str, **kwargs: Unpack[LLMInput]
-    ) -> LLMOutput[CompletionOutput]:
-        name = kwargs.get("name") or "unknown"
-        return await self._invoke(
-            JSON_CHECK_PROMPT,
-            **{
-                **kwargs,
-                "variables": {"input_text": output},
-                "name": f"fix_json@{name}",
-            },
-        )

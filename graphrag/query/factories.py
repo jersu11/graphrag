@@ -18,6 +18,9 @@ from graphrag.model import (
     TextUnit,
 )
 from graphrag.query.context_builder.entity_extraction import EntityVectorStoreKey
+from graphrag.query.llm.base import BaseLLM
+from graphrag.query.llm.claude.chat_claude import ChatClaude
+from graphrag.query.llm.claude.typing import ClaudeApiType
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.embedding import OpenAIEmbedding
 from graphrag.query.llm.oai.typing import OpenaiApiType
@@ -32,7 +35,7 @@ from graphrag.query.structured_search.local_search.search import LocalSearch
 from graphrag.vector_stores import BaseVectorStore
 
 
-def get_llm(config: GraphRagConfig) -> ChatOpenAI:
+def get_llm(config: GraphRagConfig) -> BaseLLM:
     """Get the LLM client."""
     is_azure_client = (
         config.llm.type == LLMType.AzureOpenAIChat
@@ -48,23 +51,34 @@ def get_llm(config: GraphRagConfig) -> ChatOpenAI:
     else:
         cognitive_services_endpoint = config.llm.cognitive_services_endpoint
     print(f"creating llm client with {llm_debug_info}")  # noqa T201
-    return ChatOpenAI(
-        api_key=config.llm.api_key,
-        azure_ad_token_provider=(
-            get_bearer_token_provider(
-                DefaultAzureCredential(), cognitive_services_endpoint
-            )
-            if is_azure_client and not config.llm.api_key
-            else None
-        ),
-        api_base=config.llm.api_base,
-        organization=config.llm.organization,
-        model=config.llm.model,
-        api_type=OpenaiApiType.AzureOpenAI if is_azure_client else OpenaiApiType.OpenAI,
-        deployment_name=config.llm.deployment_name,
-        api_version=config.llm.api_version,
-        max_retries=config.llm.max_retries,
-    )
+
+    if config.llm.type in [LLMType.Claude, LLMType.ClaudeChat]:
+        return ChatClaude(
+            api_key=config.llm.api_key,
+            api_base=config.llm.api_base,
+            model=config.llm.model,
+            api_type=ClaudeApiType.Anthropic,
+            api_version=config.llm.api_version,
+            max_retries=config.llm.max_retries,
+        )
+    else:
+        return ChatOpenAI(
+            api_key=config.llm.api_key,
+            azure_ad_token_provider=(
+                get_bearer_token_provider(
+                    DefaultAzureCredential(), cognitive_services_endpoint
+                )
+                if is_azure_client and not config.llm.api_key
+                else None
+            ),
+            api_base=config.llm.api_base,
+            organization=config.llm.organization,
+            model=config.llm.model,
+            api_type=OpenaiApiType.AzureOpenAI if is_azure_client else OpenaiApiType.OpenAI,
+            deployment_name=config.llm.deployment_name,
+            api_version=config.llm.api_version,
+            max_retries=config.llm.max_retries,
+        )
 
 
 def get_text_embedder(config: GraphRagConfig) -> OpenAIEmbedding:
@@ -115,6 +129,14 @@ def get_local_search_engine(
     token_encoder = tiktoken.get_encoding(config.encoding_model)
 
     ls_config = config.local_search
+    llm_params={
+        "max_tokens": ls_config.llm_max_tokens,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500)
+        "temperature": ls_config.temperature,
+        "top_p": ls_config.top_p,
+    }
+
+    if config.llm.type not in [LLMType.Claude, LLMType.ClaudeChat]:
+        llm_params["n"] = ls_config.n
 
     return LocalSearch(
         llm=llm,
@@ -130,12 +152,7 @@ def get_local_search_engine(
             token_encoder=token_encoder,
         ),
         token_encoder=token_encoder,
-        llm_params={
-            "max_tokens": ls_config.llm_max_tokens,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500)
-            "temperature": ls_config.temperature,
-            "top_p": ls_config.top_p,
-            "n": ls_config.n,
-        },
+        llm_params=llm_params,
         context_builder_params={
             "text_unit_prop": ls_config.text_unit_prop,
             "community_prop": ls_config.community_prop,
@@ -164,6 +181,21 @@ def get_global_search_engine(
     token_encoder = tiktoken.get_encoding(config.encoding_model)
     gs_config = config.global_search
 
+    map_llm_params={
+        "max_tokens": gs_config.map_max_tokens,
+        "temperature": gs_config.temperature,
+        "top_p": gs_config.top_p,
+    }
+    reduce_llm_params={
+        "max_tokens": gs_config.reduce_max_tokens,
+        "temperature": gs_config.temperature,
+        "top_p": gs_config.top_p,
+    }
+
+    if config.llm.type not in [LLMType.Claude, LLMType.ClaudeChat]:
+        map_llm_params["n"] = gs_config.n
+        reduce_llm_params["n"] = gs_config.n
+
     return GlobalSearch(
         llm=get_llm(config),
         context_builder=GlobalCommunityContext(
@@ -171,18 +203,8 @@ def get_global_search_engine(
         ),
         token_encoder=token_encoder,
         max_data_tokens=gs_config.data_max_tokens,
-        map_llm_params={
-            "max_tokens": gs_config.map_max_tokens,
-            "temperature": gs_config.temperature,
-            "top_p": gs_config.top_p,
-            "n": gs_config.n,
-        },
-        reduce_llm_params={
-            "max_tokens": gs_config.reduce_max_tokens,
-            "temperature": gs_config.temperature,
-            "top_p": gs_config.top_p,
-            "n": gs_config.n,
-        },
+        map_llm_params=map_llm_params,
+        reduce_llm_params=reduce_llm_params,
         allow_general_knowledge=False,
         json_mode=False,
         context_builder_params={

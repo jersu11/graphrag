@@ -1,7 +1,6 @@
-# Copyright (c) 2024 Microsoft Corporation.
 # Licensed under the MIT License
 
-"""OpenAI Configuration class definition."""
+"""Claude Configuration class definition."""
 
 import json
 from collections.abc import Hashable
@@ -17,8 +16,8 @@ def _non_blank(value: str | None) -> str | None:
     return None if stripped == "" else value
 
 
-class OpenAIConfiguration(Hashable, LLMConfig):
-    """OpenAI Configuration class definition."""
+class ClaudeConfiguration(Hashable, LLMConfig):
+    """Claude Configuration class definition."""
 
     # Core Configuration
     _api_key: str
@@ -33,10 +32,10 @@ class OpenAIConfiguration(Hashable, LLMConfig):
     _proxy: str | None
 
     # Operation Configuration
-    _n: int | None
+    # _n: int | None
     _temperature: float | None
-    _frequency_penalty: float | None
-    _presence_penalty: float | None
+    # _frequency_penalty: float | None
+    # _presence_penalty: float | None
     _top_p: float | None
     _max_tokens: int | None
     _response_format: str | None
@@ -101,17 +100,17 @@ class OpenAIConfiguration(Hashable, LLMConfig):
 
         self._api_key = lookup_required("api_key")
         self._model = lookup_required("model")
-        self._model_alt = lookup_required("model_alt")
+        self._model_alt = lookup_str("model_alt")
         self._deployment_name = lookup_str("deployment_name")
         self._api_base = lookup_str("api_base")
         self._api_version = lookup_str("api_version")
         self._cognitive_services_endpoint = lookup_str("cognitive_services_endpoint")
         self._organization = lookup_str("organization")
         self._proxy = lookup_str("proxy")
-        self._n = lookup_int("n")
+        # self._n = lookup_int("n")
         self._temperature = lookup_float("temperature")
-        self._frequency_penalty = lookup_float("frequency_penalty")
-        self._presence_penalty = lookup_float("presence_penalty")
+        # self._frequency_penalty = lookup_float("frequency_penalty")
+        # self._presence_penalty = lookup_float("presence_penalty")
         self._top_p = lookup_float("top_p")
         self._max_tokens = lookup_int("max_tokens")
         self._response_format = lookup_str("response_format")
@@ -177,25 +176,25 @@ class OpenAIConfiguration(Hashable, LLMConfig):
         """Proxy property definition."""
         return _non_blank(self._proxy)
 
-    @property
-    def n(self) -> int | None:
-        """N property definition."""
-        return self._n
+    # @property
+    # def n(self) -> int | None:
+    #     """N property definition."""
+    #     return self._n
 
     @property
     def temperature(self) -> float | None:
         """Temperature property definition."""
         return self._temperature
 
-    @property
-    def frequency_penalty(self) -> float | None:
-        """Frequency penalty property definition."""
-        return self._frequency_penalty
+    # @property
+    # def frequency_penalty(self) -> float | None:
+    #     """Frequency penalty property definition."""
+    #     return self._frequency_penalty
 
-    @property
-    def presence_penalty(self) -> float | None:
-        """Presence penalty property definition."""
-        return self._presence_penalty
+    # @property
+    # def presence_penalty(self) -> float | None:
+    #     """Presence penalty property definition."""
+    #     return self._presence_penalty
 
     @property
     def top_p(self) -> float | None:
@@ -282,11 +281,11 @@ class OpenAIConfiguration(Hashable, LLMConfig):
 
     def __repr__(self) -> str:
         """Repr method definition."""
-        return f"OpenAIConfiguration({self._raw_config})"
+        return f"ClaudeConfiguration({self._raw_config})"
 
     def __eq__(self, other: object) -> bool:
         """Eq method definition."""
-        if not isinstance(other, OpenAIConfiguration):
+        if not isinstance(other, ClaudeConfiguration):
             return False
         return self._raw_config == other._raw_config
 

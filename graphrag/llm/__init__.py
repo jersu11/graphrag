@@ -13,6 +13,15 @@ from .limiting import (
     create_tpm_rpm_limiters,
 )
 from .mock import MockChatLLM, MockCompletionLLM
+from .claude import (
+    ClaudeChatLLM,
+    ClaudeClientTypes,
+    ClaudeCompletionLLM,
+    ClaudeConfiguration,
+    create_claude_chat_llm,
+    create_claude_client,
+    create_claude_completion_llm,
+)
 from .openai import (
     OpenAIChatLLM,
     OpenAIClientTypes,
@@ -72,16 +81,24 @@ __all__ = [
     "MockCompletionLLM",
     "NoopLLMLimiter",
     "OnCacheActionFn",
+    # Claude
+    "ClaudeChatLLM",
+    "ClaudeClientTypes",
+    "ClaudeCompletionLLM",
+    "ClaudeConfiguration",
+    # OpenAI
     "OpenAIChatLLM",
     "OpenAIClientTypes",
     "OpenAICompletionLLM",
-    # OpenAI
     "OpenAIConfiguration",
     "OpenAIEmbeddingsLLM",
     "RateLimitingLLM",
     # Errors
     "RetriesExhaustedError",
     "TpmRpmLLMLimiter",
+    "create_claude_chat_llm",
+    "create_claude_client",
+    "create_claude_completion_llm",
     "create_openai_chat_llm",
     "create_openai_client",
     "create_openai_completion_llm",

@@ -4,6 +4,7 @@
 """A module containing 'GraphExtractionResult' and 'GraphExtractor' models."""
 
 import json
+import re
 from dataclasses import dataclass
 
 from graphrag.index.typing import ErrorHandlerFn
@@ -72,10 +73,30 @@ class SummarizeExtractor:
         else:
             result = await self._summarize_descriptions(items, descriptions)
 
+        result = await self._clean_string(result)
+
         return SummarizationResult(
             items=items,
             description=result or "",
         )
+
+
+    async def _clean_string(self, input_str) -> str:
+        # List of patterns to remove
+        # - first two are output from Llama3 8b and 70b models for summary extractor prompt
+        patterns = [
+            r'\n\nHere is a comprehensive summary of the data:\n\n',
+            r'\n\nHere is the output:\n\n',
+        ]
+        
+        # Combine all patterns into a single regex
+        combined_pattern = '|'.join(patterns)
+        
+        # Remove all occurrences of the patterns
+        clean_text = re.sub(combined_pattern, '', input_str)
+        
+        return clean_text
+
 
     async def _summarize_descriptions(
         self, items: str | tuple[str, str], descriptions: list[str]
